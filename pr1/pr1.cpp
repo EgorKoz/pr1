@@ -5,8 +5,6 @@
 #include <algorithm>
 #include <fstream>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 
 using namespace std;
 
@@ -132,8 +130,7 @@ public:
 
 int main()
 {
-	int sock;
-	struct sockaddr_in addr;
+
 	while(true) 
 	{
 		Program1 p;
