@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <fstream>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
 
 using namespace std;
 
@@ -20,12 +23,12 @@ private:
 	ofstream write;
 	ifstream read;
 public:
-	void getString() 
+	void getString() //ввод строки
 	{
-		cout << "wwedite stroku" << endl;
+		cout << "Enter a string with numbers" << endl;
 		cin >> stroka;
 	}
-	void getStringAgain()
+	void getStringAgain() //метод для повторного ввода строки
 	{
 		getString();
 		if (checkString())
@@ -39,29 +42,46 @@ public:
 			getStringAgain();
 		}
 	}
-	bool checkString()
+	bool checkString() //проверка строки на условия
 	{
-		for (int i = 0;i < stroka.length();i++) 
+		if (stroka.length()<65)
 		{
-			(isdigit(stroka[i]))? isCharDigit = true: isCharDigit = false;
+			for (int i = 0;i < stroka.length();i++) 
+			{
+				if(isdigit(stroka[i]))
+				{
+					isCharDigit = true;
+					continue;
+				}
+				else
+				{
+					isCharDigit = false;
+					break;
+				} 
+			}
+			if (isCharDigit)
+			{
+				cout << "Ok" << endl;
+				return true;
+			}
+			else 
+			{
+				cout << "Error! Please repeat input" << endl;
+				return false;
+			}
 		}
-		if (stroka.length() < 65 && isCharDigit)
+		else
 		{
-			cout << "ok" << endl;
-			return true;
-		}
-		else 
-		{
-			cout << "not ok" << endl;
+			cout << "Error! Please repeat input" << endl;
 			return false;
 		}
 	}
-	void sortString()
+	void sortString()  //сортировка по убыванию
 	{
 		sort(stroka.begin(), stroka.end());
 		reverse(stroka.begin(),stroka.end());
 	}
-	void changeString()
+	void changeString()  //замена чётных элементов на "KB"
 	{
 		for (int i = 0;i < stroka.length()-1;i=i+3)	
 		{
@@ -69,23 +89,23 @@ public:
 			stroka.replace(n, 1, bukvi);
 		}
 	}
-	void readFromFile()
+	void readFromFile() //чтение из буфера
 	{
 		read.open("buff.txt");
 		read >> stroka1;			
 		read.close();
 	}
-	void writeToFile(string str)
+	void writeToFile(string str)   //запись в буфер
 	{
 		write.open("buff.txt");
 		write << str;
 		write.close();
 	}
-	void printToConsole()
+	void printToConsole()    //вывод на консоль
 	{
-		cout << stroka1 << endl;
+		cout <<"Data: "<< stroka1 << endl;
 	}
-	void sumOfNumValues()
+	void sumOfNumValues()    //получение суммы численных значений
 	{
 		for (int i = 0;i < stroka1.length();i++)
 		{
@@ -95,10 +115,16 @@ public:
 			}
 		}
 	}
-	void thread1()
+	void sendTo(int socked) //передача значения 2 программе
+	{
+		char str[5];
+		sprintf(str,"%d",summa);		
+		send(socked, str, sizeof(str), 0);
+	}
+	void thread1()   //функция для 1 потока
 	{
 		{
-			mtx.lock();
+			mtx.lock();    //мьютекс для синхронизации потоков. разделяет общий буфер
 			getString();
 			if (checkString())
 			{
@@ -113,7 +139,7 @@ public:
 			mtx.unlock();
 		}
 	}
-	void thread2()
+	void thread2(int socket) //функция для 2 потока
 	{
 		this_thread::sleep_for(chrono::milliseconds(500));
 		{
@@ -122,7 +148,8 @@ public:
 			writeToFile(zatiranie);
 			mtx.unlock();
 			printToConsole();
-			sumOfNumValues();			
+			sumOfNumValues();	
+			sendTo(socket);		
 		}
 	}
 	
@@ -130,6 +157,23 @@ public:
 
 int main()
 {
+	int sock;
+	struct sockaddr_in addr;
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if(sock < 0)
+    {
+        perror("socket");
+        exit(1);
+    }
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(8000);
+	addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	//connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+	if(connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    	{
+        	perror("connect");
+        	exit(2);
+    	}
 
 	while(true) 
 	{
@@ -138,10 +182,9 @@ int main()
 			{
 				p.thread1();
 			});
-		
 		thread t2([&]()
 			{
-				p.thread2();
+				p.thread2(sock);
 			});
 		t1.join();
 		t2.join();
